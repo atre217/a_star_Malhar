@@ -96,3 +96,111 @@ def obs_space(width_map,height_map):
                 obs.append((x,y))
     return scal_obs,obs
 
+# Defining a function that can work with angles
+def action_set(step_size,coord, orntn,map_width,map_height):
+    x = round((step_size)*np.cos(np.deg2rad(orntn)) + coord[0],2)
+    y = round((step_size)*np.sin(np.deg2rad(orntn)) + coord[1],2)
+
+    if x>=0 and x<=map_width and y>=0 and y<= map_height:
+        return((x,y),True)
+    else:
+        return(coord,False)
+
+def map(coord,orntn,map_width,map_height,step_size,obs_list): 
+    
+    obs_set = set(obs_list)
+    cost = {}
+
+    # orientation of robot for negative 60 i.e. 300
+    ang_neg_60,is_ang_neg_60 = action_set(step_size,coord, orntn - 60,map_width,map_height)
+    if is_ang_neg_60 and (ang_neg_60[0],ang_neg_60[1]) not in obs_set:
+        cost[(ang_neg_60[0],ang_neg_60[1],orntn-60)] = step_size
+     # orientation of robot for negative 30 i.e. 330
+    ang_neg_30,is_ang_neg_30 = action_set(step_size,coord, orntn - 30,map_width,map_height)#-30
+    if is_ang_neg_30 and (ang_neg_30[0],ang_neg_30[1]) not in obs_set:
+        cost[(ang_neg_30[0],ang_neg_30[1],orntn-30)] = step_size
+     # orientation of robot for zero degrees
+    ang_zero,is_ang_zero = action_set(step_size,coord, orntn + 0,map_width,map_height)
+    if is_ang_zero and (ang_zero[0],ang_zero[1]) not in obs_set:
+        cost[(ang_zero[0],ang_zero[1],orntn)] = step_size
+     # orientation of robot for positive 30 
+    ang_30,is_ang_30 = action_set(step_size,coord, orntn + 30,map_width,map_height)#30
+    if is_ang_30 and (ang_30[0],ang_30[1]) not in obs_set: 
+        cost[(ang_30[0],ang_30[1],orntn+30)] = step_size
+     # orientation of robot positive for 60
+    ang_60,is_ang_60 = action_set(step_size,coord, orntn + 60,map_width,map_height)#60
+    if is_ang_60 and (ang_60[0],ang_60[1]) not in obs_set:
+        cost[(ang_60[0],ang_60[1],orntn+60)] = step_size
+        
+    return cost       
+
+################# ASTAR ALGORITHM #################
+def animate_astar_algo():
+    for c in itertools.cycle([".", "..", "..."]):
+        if is_computing_astar_algo:
+            break
+        sys.stdout.write('\rRunning the A-star Algorithm, Please wait' + c)
+        sys.stdout.flush()
+        time.sleep(0.1)
+
+
+def astar_algo(start,goal,map_width,map_height,step_size,obs_list):
+    
+    list_cost = {}
+    list_closed = []
+
+    #Contains the parent node and the cost taken to reach the present node
+    par_idx = {}
+    print("Starting Co-ordinates :",start)
+    print("Goal Co-ordinates :",goal)
+    print("Step Size : ", step_size)
+    list_cost[start]=0
+    list_open = [(0,start)]
+    goal_achieved = False
+    count=0
+
+    computing = threading.Thread(target=animate_astar_algo)
+    computing.start()
+    global is_computing_astar_algo
+
+    obs_set = set(obs_list)
+    while len(list_open)>0 and goal_achieved == False:
+        count = count+1
+        totalC, cord_parent = heapq.heappop(list_open) 
+        posn_parent = (cord_parent[0],cord_parent[1])
+        orntn = cord_parent[2]
+        
+        neighbours = map(posn_parent,orntn,map_width,map_height,step_size,obstacle_scaled)
+        if posn_parent not in obs_set:
+            for key, cost in neighbours.items():
+                list_cost[key]=math.inf
+                
+            for coord, cost in neighbours.items():
+                if(coord not in  list_closed) and (coord not in obs_list):
+                    coord_round = (round(coord[0]),round(coord[1]),coord[2])
+                    list_closed.append(coord_round)
+                    Cost2Come = cost 
+                    Cost2Go = math. dist((coord[0],coord[1]),(goal[0],goal[1]))  # h(n)
+                    TotalCost = Cost2Come + Cost2Go   # f(n)
+                    
+                    if TotalCost < list_cost[coord] or coord not in list_open :
+                        
+                        par_idx[coord_round]={}
+                        par_idx[coord_round][TotalCost] = cord_parent
+                        list_cost[coord_round]=TotalCost
+                        heapq.heappush(list_open, (TotalCost, coord_round))
+
+                    # Step size determines the threshold
+                    if ((coord_round[0]-goal[0])**2 + (coord_round[1]-goal[1])**2 <= (step_size)**2) and coord_round[2]==goal[2] :
+                        print("\nFinal Node :",coord_round)
+                        print('GOAL  Reached !!')
+                        print("Total Cost :  ",TotalCost)
+                        goal_achieved = True
+                        time.sleep(0)
+                        is_computing_astar_algo = True
+                        return par_idx,list_closed,coord_round,True
+
+                    
+    return par_idx,list_closed,False
+                    
+
